@@ -1,32 +1,48 @@
+import fs from 'fs';
 import { open } from 'sqlite';
 import sqlite3 from 'sqlite3';
-import fs from 'fs';
+import * as readline from 'readline';
 import { UsuarioService } from './services/UsuarioService';
 import { EventoService } from './services/EventoService';
-import * as readline from 'readline';
 import { usuarioSchema } from './validation/UsuarioValidation';
+
+// Função para registrar logs em arquivo de texto
+function logToFile(usuario: string, acao: string) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] Usuário: ${usuario} | Ação: ${acao}\n`;
+
+  // Adiciona o log no arquivo logs.log
+  fs.appendFileSync('./data/logs.log', logMessage, 'utf8');
+}
 
 async function initializeDatabase() {
   if (!fs.existsSync('./data')) fs.mkdirSync('./data');
 
   const dbUsuario = await open({ filename: './data/usuario.db', driver: sqlite3.Database });
-  await dbUsuario.exec(`CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT UNIQUE NOT NULL, senha TEXT NOT NULL);`);
+  await dbUsuario.exec(`CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, 
+    nome TEXT NOT NULL, 
+    email TEXT UNIQUE NOT NULL, 
+    senha TEXT NOT NULL
+  );`);
+
   if (!await dbUsuario.get('SELECT * FROM usuarios WHERE email = ?', ['admin@hotmail.com'])) {
     await dbUsuario.run('INSERT INTO usuarios (nome, email, senha) VALUES (?, ?, ?)', ['Administrador', 'admin@hotmail.com', 'aDmin123@!']);
   }
 
   const dbEvento = await open({ filename: './data/evento.db', driver: sqlite3.Database });
-  await dbEvento.exec(`CREATE TABLE IF NOT EXISTS eventos (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, data TEXT NOT NULL, usuario_id INTEGER, FOREIGN KEY (usuario_id) REFERENCES usuarios(id));`);
-
-  const dbLogs = await open({ filename: './data/logs.db', driver: sqlite3.Database });
-  await dbLogs.exec(`CREATE TABLE IF NOT EXISTS logs (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT NOT NULL, acao TEXT NOT NULL, datahora DATETIME DEFAULT CURRENT_TIMESTAMP);`);
+  await dbEvento.exec(`CREATE TABLE IF NOT EXISTS eventos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, 
+    nome TEXT NOT NULL, 
+    data TEXT NOT NULL, 
+    usuario_id INTEGER, 
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+  );`);
 
   console.log('Banco de dados inicializado com sucesso!');
-  try {
-    await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', ['Sistema', 'Sistema inicializado']);
-  } catch (error) {
-    console.error('Erro ao inserir log de inicialização:', error);
-  }
+  
+  // Registra log de inicialização no arquivo
+  logToFile('Sistema', 'Sistema inicializado');
 }
 
 async function mainMenu() {
@@ -37,6 +53,7 @@ async function mainMenu() {
 
   let currentUser = null;
   console.log('--- Sistema de Login ---');
+
   while (!currentUser) {
     const id = await ask('ID do Usuário: ');
     try {
@@ -44,8 +61,7 @@ async function mainMenu() {
       if (user) {
         currentUser = user;
         console.log(`Login bem-sucedido! Bem-vindo, ${user.nome}`);
-        const dbLogs = await open({ filename: './data/logs.db', driver: sqlite3.Database });
-        await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [user.email, 'Login realizado']);
+        logToFile(user.email, 'Login realizado');
       } else {
         console.log('Usuário não encontrado. Tente novamente.');
       }
@@ -57,77 +73,67 @@ async function mainMenu() {
   while (true) {
     const option = await ask('Escolha uma opção:\n1. Criar usuário\n2. Listar usuários\n3. Buscar usuário por ID\n4. Alterar usuário\n5. Deletar usuário\n6. Criar evento\n7. Sair\n> ');
     try {
-      const dbLogs = await open({ filename: './data/logs.db', driver: sqlite3.Database });
       switch (option.trim()) {
         case '1':
-    try {
-      const nome = await ask('Nome: ');
-      const email = await ask('Email: ');
-      const senha = await ask('Senha: ');
+          try {
+            const nome = await ask('Nome: ');
+            const email = await ask('Email: ');
+            const senha = await ask('Senha: ');
 
-      const validatedUser = usuarioSchema.parse({ nome, email, senha });
+            const validatedUser = usuarioSchema.parse({ nome, email, senha });
 
-          await usuarioService.createUsuario(validatedUser);
-          await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [currentUser.email, `Criou o usuário ${email}`]);
-          console.log('Usuário criado com sucesso!');
-    } catch (error) {
-          if (error instanceof Error) {
-          console.error('Erro ao criar usuário:', error.message);
-    } else {
-          console.error('Erro desconhecido ao criar usuário.');
-    }
-  }
+            await usuarioService.createUsuario(validatedUser);
+            logToFile(currentUser.email, `Criou o usuário ${email}`);
+            console.log('Usuário criado com sucesso!');
+          } catch (error) {
+            console.error('Erro ao criar usuário:', error);
+          }
           break;
         case '2':
           console.log(await usuarioService.getAllUsuarios());
-          await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [currentUser.email, 'Listou todos os usuários']);
+          logToFile(currentUser.email, 'Listou todos os usuários');
           break;
         case '3':
           const idBusca = await ask('ID do usuário: ');
           console.log(await usuarioService.getUsuarioById(Number(idBusca)));
-          await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [currentUser.email, `Buscou o usuário de ID ${idBusca}`]);
+          logToFile(currentUser.email, `Buscou o usuário de ID ${idBusca}`);
           break;
         case '4':
           try {
-          const idAlt = await ask('ID do usuário a alterar: ');
-          const novoNome = await ask('Novo nome (pressione Enter para manter o atual): ');
-          const novoEmail = await ask('Novo email (pressione Enter para manter o atual): ');
-          const novaSenha = await ask('Nova senha (pressione Enter para manter a atual): ');
-        
-          const updatedUserData: any = {};
-          if (novoNome) updatedUserData.nome = novoNome;
-          if (novoEmail) updatedUserData.email = novoEmail;
-          if (novaSenha) updatedUserData.senha = novaSenha;
-          
-          const validatedUser = usuarioSchema.parse(updatedUserData);
-          
-          await usuarioService.updateUsuario(Number(idAlt), validatedUser);
-          await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [currentUser.email, `Alterou o usuário de ID ${idAlt}`]);
-          console.log('Usuário alterado com sucesso!');
-        } catch (error) {
-        if (error instanceof Error) {
-          console.error('Erro ao alterar usuário:', error.message);
-        } else {
-          console.error('Erro desconhecido ao alterar usuário.');
-    }
-  }
+            const idAlt = await ask('ID do usuário a alterar: ');
+            const novoNome = await ask('Novo nome (pressione Enter para manter o atual): ');
+            const novoEmail = await ask('Novo email (pressione Enter para manter o atual): ');
+            const novaSenha = await ask('Nova senha (pressione Enter para manter a atual): ');
+
+            const updatedUserData: any = {};
+            if (novoNome) updatedUserData.nome = novoNome;
+            if (novoEmail) updatedUserData.email = novoEmail;
+            if (novaSenha) updatedUserData.senha = novaSenha;
+
+            const validatedUser = usuarioSchema.parse(updatedUserData);
+
+            await usuarioService.updateUsuario(Number(idAlt), validatedUser);
+            logToFile(currentUser.email, `Alterou o usuário de ID ${idAlt}`);
+            console.log('Usuário alterado com sucesso!');
+          } catch (error) {
+            console.error('Erro ao alterar usuário:', error);
+          }
           break;
-          
         case '5':
           const idDel = await ask('ID do usuário a deletar: ');
           await usuarioService.deleteUsuario(Number(idDel));
-          await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [currentUser.email, `Deletou o usuário de ID ${idDel}`]);
+          logToFile(currentUser.email, `Deletou o usuário de ID ${idDel}`);
           console.log('Usuário deletado com sucesso!');
           break;
         case '6':
           const eventoNome = await ask('Nome do evento: ');
           const eventoData = await ask('Data do evento (DD-MM-AAAA): ');
           await eventoService.createEvento({ nome: eventoNome, data: eventoData, usuario_id: currentUser.id });
-          await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [currentUser.email, `Criou o evento ${eventoNome}`]);
+          logToFile(currentUser.email, `Criou o evento ${eventoNome}`);
           console.log('Evento criado com sucesso!');
           break;
         case '7':
-          await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [currentUser.email, 'Logout realizado']);
+          logToFile(currentUser.email, 'Logout realizado');
           console.log('Saindo...');
           rl.close();
           process.exit(0);
@@ -135,8 +141,7 @@ async function mainMenu() {
           console.log('Opção inválida');
       }
     } catch (error: unknown) {
-      const err = error as Error;
-      console.error('Erro:', err.message);
+      console.error('Erro:', (error as Error).message);
     }
   }
 }

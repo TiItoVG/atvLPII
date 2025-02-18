@@ -6,12 +6,11 @@ import { UsuarioService } from './services/UsuarioService';
 import { EventoService } from './services/EventoService';
 import { usuarioSchema } from './validation/UsuarioValidation';
 
-// Função para registrar logs em arquivo de texto
 function logToFile(usuario: string, acao: string) {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] Usuário: ${usuario} | Ação: ${acao}\n`;
 
-  // Adiciona o log no arquivo logs.log
+
   fs.appendFileSync('./data/logs.log', logMessage, 'utf8');
 }
 
@@ -41,7 +40,7 @@ async function initializeDatabase() {
 
   console.log('Banco de dados inicializado com sucesso!');
   
-  // Registra log de inicialização no arquivo
+
   logToFile('Sistema', 'Sistema inicializado');
 }
 

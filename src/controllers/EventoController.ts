@@ -9,7 +9,7 @@ export class EventoController {
 
   async createEvento(data: any) {
     try {
-      // Validação com Zod
+      
       const validatedData = eventoSchema.parse(data);
   
       const evento = await this.eventoService.createEvento(validatedData) as unknown as Evento | null;

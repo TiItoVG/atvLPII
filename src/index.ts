@@ -1,9 +1,10 @@
-import { open } from 'sqlite'
+import { open } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import fs from 'fs';
 import { UsuarioService } from './services/UsuarioService';
 import { EventoService } from './services/EventoService';
 import * as readline from 'readline';
+import { usuarioSchema } from './validation/UsuarioValidation';
 
 async function initializeDatabase() {
   if (!fs.existsSync('./data')) fs.mkdirSync('./data');
@@ -11,7 +12,7 @@ async function initializeDatabase() {
   const dbUsuario = await open({ filename: './data/usuario.db', driver: sqlite3.Database });
   await dbUsuario.exec(`CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT UNIQUE NOT NULL, senha TEXT NOT NULL);`);
   if (!await dbUsuario.get('SELECT * FROM usuarios WHERE email = ?', ['admin@hotmail.com'])) {
-    await dbUsuario.run('INSERT INTO usuarios (nome, email, senha) VALUES (?, ?, ?)', ['Administrador', 'admin@hotmail.com', 'aDMin123@!']);
+    await dbUsuario.run('INSERT INTO usuarios (nome, email, senha) VALUES (?, ?, ?)', ['Administrador', 'admin@hotmail.com', 'aDmin123@!']);
   }
 
   const dbEvento = await open({ filename: './data/evento.db', driver: sqlite3.Database });
@@ -59,12 +60,23 @@ async function mainMenu() {
       const dbLogs = await open({ filename: './data/logs.db', driver: sqlite3.Database });
       switch (option.trim()) {
         case '1':
-          const nome = await ask('Nome: ');
-          const email = await ask('Email: ');
-          const senha = await ask('Senha: ');
-          await usuarioService.createUsuario({ nome, email, senha });
+    try {
+      const nome = await ask('Nome: ');
+      const email = await ask('Email: ');
+      const senha = await ask('Senha: ');
+
+      const validatedUser = usuarioSchema.parse({ nome, email, senha });
+
+          await usuarioService.createUsuario(validatedUser);
           await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [currentUser.email, `Criou o usuário ${email}`]);
           console.log('Usuário criado com sucesso!');
+    } catch (error) {
+          if (error instanceof Error) {
+          console.error('Erro ao criar usuário:', error.message);
+    } else {
+          console.error('Erro desconhecido ao criar usuário.');
+    }
+  }
           break;
         case '2':
           console.log(await usuarioService.getAllUsuarios());
@@ -76,14 +88,31 @@ async function mainMenu() {
           await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [currentUser.email, `Buscou o usuário de ID ${idBusca}`]);
           break;
         case '4':
+          try {
           const idAlt = await ask('ID do usuário a alterar: ');
-          const novoNome = await ask('Novo nome: ');
-          const novoEmail = await ask('Novo email: ');
-          const novaSenha = await ask('Nova senha: ');
-          await usuarioService.updateUsuario(Number(idAlt), { nome: novoNome, email: novoEmail, senha: novaSenha });
+          const novoNome = await ask('Novo nome (pressione Enter para manter o atual): ');
+          const novoEmail = await ask('Novo email (pressione Enter para manter o atual): ');
+          const novaSenha = await ask('Nova senha (pressione Enter para manter a atual): ');
+        
+          const updatedUserData: any = {};
+          if (novoNome) updatedUserData.nome = novoNome;
+          if (novoEmail) updatedUserData.email = novoEmail;
+          if (novaSenha) updatedUserData.senha = novaSenha;
+          
+          const validatedUser = usuarioSchema.parse(updatedUserData);
+          
+          await usuarioService.updateUsuario(Number(idAlt), validatedUser);
           await dbLogs.run('INSERT INTO logs (usuario, acao) VALUES (?, ?)', [currentUser.email, `Alterou o usuário de ID ${idAlt}`]);
           console.log('Usuário alterado com sucesso!');
+        } catch (error) {
+        if (error instanceof Error) {
+          console.error('Erro ao alterar usuário:', error.message);
+        } else {
+          console.error('Erro desconhecido ao alterar usuário.');
+    }
+  }
           break;
+          
         case '5':
           const idDel = await ask('ID do usuário a deletar: ');
           await usuarioService.deleteUsuario(Number(idDel));

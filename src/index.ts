@@ -7,7 +7,7 @@ import { EventoService } from './services/EventoService';
 import { usuarioSchema } from './validation/UsuarioValidation';
 
 function logToFile(usuario: string, acao: string) {
-  const timestamp = new Date().toISOString();
+  const timestamp = new Date().toLocaleString();
   const logMessage = `[${timestamp}] Usuário: ${usuario} | Ação: ${acao}\n`;
 
 

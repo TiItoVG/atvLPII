@@ -11,7 +11,7 @@ async function initializeDatabase() {
   const dbUsuario = await open({ filename: './data/usuario.db', driver: sqlite3.Database });
   await dbUsuario.exec(`CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT UNIQUE NOT NULL, senha TEXT NOT NULL);`);
   if (!await dbUsuario.get('SELECT * FROM usuarios WHERE email = ?', ['admin@hotmail.com'])) {
-    await dbUsuario.run('INSERT INTO usuarios (nome, email, senha) VALUES (?, ?, ?)', ['Administrador', 'admin@hotmail.com', 'aDmin123@!']);
+    await dbUsuario.run('INSERT INTO usuarios (nome, email, senha) VALUES (?, ?, ?)', ['Administrador', 'admin@hotmail.com', 'aDMin123@!']);
   }
 
   const dbEvento = await open({ filename: './data/evento.db', driver: sqlite3.Database });

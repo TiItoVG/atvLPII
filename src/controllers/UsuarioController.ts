@@ -9,7 +9,7 @@ export class UsuarioController {
 
   async createUsuario(data: any) {
     try {
-      // Validação com Zod
+      
       const validatedData = usuarioSchema.parse(data);
   
       const usuario = await this.usuarioService.createUsuario(validatedData) as unknown as Usuario | null;
@@ -28,7 +28,7 @@ export class UsuarioController {
   }
   async alterarUsuario(id: number, data: any) {
     try {
-      // Validação com Zod
+      
       const validatedData = usuarioSchema.parse(data); 
   
       const usuario = await this.usuarioService.updateUsuario(id, validatedData) as unknown as Usuario | null;
